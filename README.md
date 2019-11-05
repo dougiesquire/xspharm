@@ -2,4 +2,4 @@
 ### author: Dougie Squire ###
 
 -----------------------------
-Functions that I use for analysis/plotting 
+Some beta-version functions that I use for analysis/plotting 
