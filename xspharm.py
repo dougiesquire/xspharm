@@ -1,6 +1,5 @@
 # Adadpted from spencerclark's code base: https://gist.github.com/spencerkclark/6a8e05a492111e52d8d8fb407d332611
 import spharm
-import doppyo
 import numpy as np
 import xarray as xr
 import dask.array as darray
@@ -22,8 +21,24 @@ def wraps_dask_array(da):
     """
     return isinstance(da.data, darray.core.Array)
 
+def get_other_dims(da, dim_exclude):
+    """ 
+        Returns all dimensions in provided xarray object excluding dim_exclude 
+    """
+    
+    dims = da.dims
+    
+    if dims_exclude == None:
+        return dims
+    else:
+        if isinstance(dims, str):
+            dims = [dims]
+        if isinstance(dims_exclude, str):
+            dims_exclude = [dims_exclude]
 
-def flip_lat(da,lat_name):
+        return set(dims) - set(dims_exclude)
+
+def flip_lat(da, lat_name):
     """
         Flip latitude dimension
     """
@@ -41,7 +56,7 @@ def stack_non_horizontal_dims(da, non_horizontal_dims):
     """
         If present, stack all non-horizontal dims onto one dimension
     """
-    dims_to_stack = doppyo.utils.get_other_dims(da, non_horizontal_dims)
+    dims_to_stack = get_other_dims(da, non_horizontal_dims)
     if dims_to_stack:
         da = da.stack(**{_NON_HORIZONTAL_DIM: dims_to_stack})
     return da
@@ -58,7 +73,7 @@ def order_dims_first(da, first_dims):
     """
         Order dims such that first_dims come first
     """
-    order = first_dims + doppyo.utils.get_other_dims(da, first_dims)
+    order = first_dims + get_other_dims(da, first_dims)
     return da.transpose(*order)
 
 
@@ -200,7 +215,7 @@ def get_power(coeffs):
     return integrate_along_m(abs(coeffs) ** 2)
 
 
-def prep_for_spharm(da):
+def prep_for_spharm(da, lat_dim='lat', lon_dim='lon'):
     """
         Prepare DataArray for use with spharm (e.g. grdtospec)
         
@@ -208,6 +223,10 @@ def prep_for_spharm(da):
         ----------
         da : xarray DataArray
             Input DataArray
+        lat_dim : str
+            Name of latitude dimension
+        lon_dim : str
+            Name of longitude dimension
         
         Returns
         -------
@@ -216,24 +235,21 @@ def prep_for_spharm(da):
                 boolean indicating whether the data was latitudinally flipped
     """
 
-    def _orient_latitude_north_south(da, lat_name):
+    def _orient_latitude_north_south(da, lat_dim):
         """
             Orients data such that northern latitudes come first
             Returns the transformed array as well as flag noting if the data were
             flipped.
         """
-        if all(da[lat_name].diff(lat_name) > 0.):
-            return flip_lat(da, lat_name), True
+        if all(da[lat_dim].diff(lat_dim) > 0.):
+            return flip_lat(da, lat_dim), True
         else:
             return da, False
-        
-    LAT_NAME = doppyo.utils.get_lat_name(da)
-    LON_NAME = doppyo.utils.get_lon_name(da)
 
-    da = stack_non_horizontal_dims(da, (LAT_NAME, LON_NAME))
-    da = order_dims_first(da, (LAT_NAME, LON_NAME))
-    da = make_single_chunk(da, (LAT_NAME, LON_NAME))
-    return _orient_latitude_north_south(da, LAT_NAME)
+    da = stack_non_horizontal_dims(da, (lat_dim, lon_dim))
+    da = order_dims_first(da, (lat_dim, lon_dim))
+    da = make_single_chunk(da, (lat_dim, lon_dim))
+    return _orient_latitude_north_south(da, lat_dim)
 
 
 def prep_for_inv_spharm(da):
@@ -261,7 +277,7 @@ def prep_for_inv_spharm(da):
 # grdtospec
 # ===================================================================================================
 
-def grdtospec(da, gridtype, n_trunc=None, unpack_wavenumber_pairs=False, prepped=False):
+def grdtospec(da, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=None, unpack_wavenumber_pairs=False, prepped=False):
     """
         Returns complex spherical harmonic coefficients resulting from the spherical harmonic analysis \
                 of da using spharm package
@@ -304,17 +320,14 @@ def grdtospec(da, gridtype, n_trunc=None, unpack_wavenumber_pairs=False, prepped
                                      drop_axis=(0, 1), new_axis=(0, ))
         else:
             return st.grdtospec(da)
-
-    LAT_NAME = doppyo.utils.get_lat_name(da)
-    LON_NAME = doppyo.utils.get_lon_name(da)
     
     if not prepped:
         da, flipped = prep_for_spharm(da)
 
     if n_trunc is None:
-        n_trunc = int(da.sizes[LAT_NAME]/2) - 1
+        n_trunc = int(da.sizes[lat_dim]/2) - 1
     
-    st = create_spharmt(da.sizes[LON_NAME], da.sizes[LAT_NAME], gridtype=gridtype)
+    st = create_spharmt(da.sizes[lon_dim], da.sizes[lat_dim], gridtype=gridtype)
 
     if _NON_HORIZONTAL_DIM in da.dims:
         output_core_dims = [[_HARMONIC_DIM, _NON_HORIZONTAL_DIM]]
@@ -324,7 +337,7 @@ def grdtospec(da, gridtype, n_trunc=None, unpack_wavenumber_pairs=False, prepped
                                 input_core_dims=[[], da.dims, []],
                                 output_core_dims=output_core_dims,
                                 output_sizes=output_sizes,
-                                exclude_dims=set((LAT_NAME, LON_NAME)), dask='allowed') \
+                                exclude_dims=set((lat_dim, lon_dim)), dask='allowed') \
                    .unstack(_NON_HORIZONTAL_DIM)
     else:
         output_core_dims = [[_HARMONIC_DIM]]
@@ -334,7 +347,7 @@ def grdtospec(da, gridtype, n_trunc=None, unpack_wavenumber_pairs=False, prepped
                                 input_core_dims=[[], da.dims, []],
                                 output_core_dims=output_core_dims,
                                 output_sizes=output_sizes,
-                                exclude_dims=set((LAT_NAME, LON_NAME)), dask='allowed')
+                                exclude_dims=set((lat_dim, lon_dim)), dask='allowed')
     
     coeffs[_HARMONIC_DIM] = range(coeffs.sizes[_HARMONIC_DIM]) 
     coeffs = add_attrs(coeffs, **{'xspharm_history':'grdtospec(..'
@@ -353,7 +366,7 @@ def grdtospec(da, gridtype, n_trunc=None, unpack_wavenumber_pairs=False, prepped
 # spectogrd
 # ===================================================================================================
 
-def spectogrd(da, gridtype='gaussian', n_lat=None,  prepped=False, LAT_NAME='lat', LON_NAME='lon'):
+def spectogrd(da, gridtype='gaussian', n_lat=None,  prepped=False, lat_name='lat', lon_name='lon'):
     """
         Returns the real-space fields resulting from the spherical harmonic synthesis of da using spharm package
         
@@ -410,9 +423,9 @@ def spectogrd(da, gridtype='gaussian', n_lat=None,  prepped=False, LAT_NAME='lat
     st = create_spharmt(n_lon, n_lat, gridtype=gridtype)
 
     if _NON_HORIZONTAL_DIM in da.dims:
-        output_core_dims = [[LAT_NAME, LON_NAME, _NON_HORIZONTAL_DIM]]
-        output_sizes = {LAT_NAME: n_lat,
-                        LON_NAME: n_lon,
+        output_core_dims = [[lat_name, lon_name, _NON_HORIZONTAL_DIM]]
+        output_sizes = {lat_name: n_lat,
+                        lon_name: n_lon,
                         _NON_HORIZONTAL_DIM: da.sizes[_NON_HORIZONTAL_DIM]}
         real = xr.apply_ufunc(_spectogrd, st, da,
                               input_core_dims=[[], da.dims],
@@ -421,8 +434,8 @@ def spectogrd(da, gridtype='gaussian', n_lat=None,  prepped=False, LAT_NAME='lat
                               exclude_dims=set((_HARMONIC_DIM, )), dask='allowed') \
                  .unstack(_NON_HORIZONTAL_DIM)
     else:
-        output_core_dims = [[LAT_NAME, LON_NAME]]
-        output_sizes = {LAT_NAME: n_lat, LON_NAME: n_lon}
+        output_core_dims = [[lat_name, lon_name]]
+        output_sizes = {lat_name: n_lat, lon_name: n_lon}
 
         real = xr.apply_ufunc(_spectogrd, st, da,
                               input_core_dims=[[], da.dims],
@@ -431,8 +444,8 @@ def spectogrd(da, gridtype='gaussian', n_lat=None,  prepped=False, LAT_NAME='lat
                               exclude_dims=set((_HARMONIC_DIM, )), dask='allowed')
     
     lat, lon = get_spharm_grid(n_lat, gridtype)
-    real[LAT_NAME] = lat
-    real[LON_NAME] = lon
+    real[lat_name] = lat
+    real[lon_name] = lon
     real = add_attrs(real, **{'xspharm_history':'spectogrd(..'
                               ' gridtype=' + gridtype + 
                               ', n_lat=' + str(n_lat) +
@@ -444,7 +457,7 @@ def spectogrd(da, gridtype='gaussian', n_lat=None,  prepped=False, LAT_NAME='lat
 # getpsichi
 # ===================================================================================================
 
-def getpsichi(u_grid, v_grid, gridtype, n_trunc=None):
+def getpsichi(u_grid, v_grid, lat_dim='lat', lon_dim='lon', gridtype, n_trunc=None):
     """
         Returns streamfunction (psi) and velocity potential (chi) using spharm package
         
@@ -481,16 +494,13 @@ def getpsichi(u_grid, v_grid, gridtype, n_trunc=None):
             psi, chi = st.getpsichi(u, v, n_trunc)
             return psi, chi
     
-    LAT_NAME = doppyo.utils.get_lat_name(u_grid)
-    LON_NAME = doppyo.utils.get_lon_name(u_grid)
-    
     if n_trunc is None:
-        n_trunc = int(u_grid.sizes[LAT_NAME]/2) - 1
+        n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
         
     u_grid, _ = prep_for_spharm(u_grid)
     v_grid, flipped = prep_for_spharm(v_grid)
     
-    st = create_spharmt(u_grid.sizes[LON_NAME], u_grid.sizes[LAT_NAME], gridtype=gridtype)
+    st = create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
 
     psi, chi = xr.apply_ufunc(_getpsichi, st, u_grid, v_grid, n_trunc,
                                 input_core_dims=[[], u_grid.dims, v_grid.dims, []],
@@ -540,17 +550,14 @@ def getpsichi(u_grid, v_grid, gridtype, n_trunc=None):
 #                                      dtype=np.float)
 #         else:
 #             return _ggetpsi(st, u, v, n_trunc)
-    
-#     LAT_NAME = doppyo.utils.get_lat_name(u_grid)
-#     LON_NAME = doppyo.utils.get_lon_name(u_grid)
-    
+ 
 #     if n_trunc is None:
-#         n_trunc = int(u_grid.sizes[LAT_NAME]/2) - 1
+#         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
         
 #     u_grid, _ = prep_for_spharm(u_grid)
 #     v_grid, flipped = prep_for_spharm(v_grid)
     
-#     st = create_spharmt(u_grid.sizes[LON_NAME], u_grid.sizes[LAT_NAME], gridtype=gridtype)
+#     st = create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
 
 #     psi = xr.apply_ufunc(_getpsi, st, u_grid, v_grid, n_trunc,
 #                          input_core_dims=[[], u_grid.dims, v_grid.dims, []],
@@ -594,17 +601,14 @@ def getpsichi(u_grid, v_grid, gridtype, n_trunc=None):
 #                                      dtype=np.float)
 #         else:
 #             return _ggetchi(st, u, v, n_trunc)
-    
-#     LAT_NAME = doppyo.utils.get_lat_name(u_grid)
-#     LON_NAME = doppyo.utils.get_lon_name(u_grid)
-    
+
 #     if n_trunc is None:
-#         n_trunc = int(u_grid.sizes[LAT_NAME]/2) - 1
+#         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
         
 #     u_grid, _ = prep_for_spharm(u_grid)
 #     v_grid, flipped = prep_for_spharm(v_grid)
     
-#     st = create_spharmt(u_grid.sizes[LON_NAME], u_grid.sizes[LAT_NAME], gridtype=gridtype)
+#     st = create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
 
 #     chi = xr.apply_ufunc(_getchi, st, u_grid, v_grid, n_trunc,
 #                          input_core_dims=[[], u_grid.dims, v_grid.dims, []],
