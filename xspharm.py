@@ -457,7 +457,7 @@ def spectogrd(da, gridtype='gaussian', n_lat=None,  prepped=False, lat_name='lat
 # getpsichi
 # ===================================================================================================
 
-def getpsichi(u_grid, v_grid, lat_dim='lat', lon_dim='lon', gridtype, n_trunc=None):
+def getpsichi(u_grid, v_grid, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=None):
     """
         Returns streamfunction (psi) and velocity potential (chi) using spharm package
         
