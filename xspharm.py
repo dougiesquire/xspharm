@@ -15,80 +15,80 @@ RADIUS = 6370997.
 # Utilities
 # ===================================================================================================
 
-def wraps_dask_array(da):
+def _wraps_dask_array(da):
     """
         Check if an xarray object wraps a dask array
     """
     return isinstance(da.data, darray.core.Array)
 
-def get_other_dims(da, dim_exclude):
+def _get_other_dims(da, dim_exclude):
     """ 
         Returns all dimensions in provided xarray object excluding dim_exclude 
     """
     
     dims = da.dims
     
-    if dims_exclude == None:
+    if dim_exclude == None:
         return dims
     else:
         if isinstance(dims, str):
             dims = [dims]
-        if isinstance(dims_exclude, str):
-            dims_exclude = [dims_exclude]
+        if isinstance(dim_exclude, str):
+            dim_exclude = [dim_exclude]
 
-        return set(dims) - set(dims_exclude)
+        return tuple(set(dims) - set(dim_exclude))
 
-def flip_lat(da, lat_name):
+def _flip_lat(da, lat_name):
     """
         Flip latitude dimension
     """
     return da.isel(**{lat_name: slice(None, None, -1)})
 
 
-def create_spharmt(n_lon, n_lat, gridtype):
+def _create_spharmt(n_lon, n_lat, gridtype):
     """
         Initialise Spharmt object
     """
     return Spharmt(n_lon, n_lat, rsphere=RADIUS, gridtype=gridtype)
 
 
-def stack_non_horizontal_dims(da, non_horizontal_dims):
+def _stack_non_horizontal_dims(da, non_horizontal_dims):
     """
         If present, stack all non-horizontal dims onto one dimension
     """
-    dims_to_stack = get_other_dims(da, non_horizontal_dims)
+    dims_to_stack = _get_other_dims(da, non_horizontal_dims)
     if dims_to_stack:
         da = da.stack(**{_NON_HORIZONTAL_DIM: dims_to_stack})
     return da
 
 
-def N_harmonics(n_trunc):
+def _N_harmonics(n_trunc):
     """
         Return the number of harmonics
     """
     return (n_trunc + 1) * (n_trunc + 2) // 2
 
 
-def order_dims_first(da, first_dims):
+def _order_dims_first(da, first_dims):
     """
         Order dims such that first_dims come first
     """
-    order = first_dims + get_other_dims(da, first_dims)
+    order = first_dims + _get_other_dims(da, first_dims)
     return da.transpose(*order)
 
 
-def make_single_chunk(da, dims):
+def _make_single_chunk(da, dims):
     """
         If underlying data are chunked, rechunk specified dims to single chunk
     """
     chunks = {dim : -1 for dim in dims}
 
-    if wraps_dask_array(da):
+    if _wraps_dask_array(da):
         da = da.chunk(chunks)
     return da
 
 
-def add_attrs(da, **kwargs):
+def _add_attrs(da, **kwargs):
     """
         Add attributes to xarray object
     """
@@ -98,6 +98,64 @@ def add_attrs(da, **kwargs):
         else:
             da.attrs[key] = value
     return da
+
+
+def _prep_for_spharm(da, lat_dim='lat', lon_dim='lon'):
+    """
+        Prepare DataArray for use with spharm (e.g. grdtospec)
+        
+        Parameters
+        ----------
+        da : xarray DataArray
+            Input DataArray
+        lat_dim : str
+            Name of latitude dimension
+        lon_dim : str
+            Name of longitude dimension
+        
+        Returns
+        -------
+        xr.DataArray, boolean
+            Array containing data that has been prepared for use with spharm, and a \
+                boolean indicating whether the data was latitudinally flipped
+    """
+
+    def _orient_latitude_north_south(da, lat_dim):
+        """
+            Orients data such that northern latitudes come first
+            Returns the transformed array as well as flag noting if the data were
+            flipped.
+        """
+        if all(da[lat_dim].diff(lat_dim) > 0.):
+            return _flip_lat(da, lat_dim), True
+        else:
+            return da, False
+
+    da = _stack_non_horizontal_dims(da, (lat_dim, lon_dim))
+    da = _order_dims_first(da, (lat_dim, lon_dim))
+    da = _make_single_chunk(da, (lat_dim, lon_dim))
+    return _orient_latitude_north_south(da, lat_dim)
+
+
+def _prep_for_inv_spharm(da):
+    """
+        Prepare DataArray for use with inverse spharm (e.g. spectogrd)
+        
+        Parameters
+        ----------
+        da : xarray DataArray
+            Input DataArray
+        
+        Returns
+        -------
+        xr.DataArray, boolean
+            Array containing data that has been prepared for use with spharm, and a \
+                boolean indicating whether the data was latitudinally flipped
+    """
+    
+    da = _stack_non_horizontal_dims(da, (_HARMONIC_DIM, ))
+    da = _order_dims_first(da, (_HARMONIC_DIM, ))
+    return _make_single_chunk(da, (_HARMONIC_DIM, ))
 
 
 def get_spharm_grid(n_lat, gridtype): 
@@ -215,64 +273,6 @@ def get_power(coeffs):
     return integrate_along_m(abs(coeffs) ** 2)
 
 
-def prep_for_spharm(da, lat_dim='lat', lon_dim='lon'):
-    """
-        Prepare DataArray for use with spharm (e.g. grdtospec)
-        
-        Parameters
-        ----------
-        da : xarray DataArray
-            Input DataArray
-        lat_dim : str
-            Name of latitude dimension
-        lon_dim : str
-            Name of longitude dimension
-        
-        Returns
-        -------
-        xr.DataArray, boolean
-            Array containing data that has been prepared for use with spharm, and a \
-                boolean indicating whether the data was latitudinally flipped
-    """
-
-    def _orient_latitude_north_south(da, lat_dim):
-        """
-            Orients data such that northern latitudes come first
-            Returns the transformed array as well as flag noting if the data were
-            flipped.
-        """
-        if all(da[lat_dim].diff(lat_dim) > 0.):
-            return flip_lat(da, lat_dim), True
-        else:
-            return da, False
-
-    da = stack_non_horizontal_dims(da, (lat_dim, lon_dim))
-    da = order_dims_first(da, (lat_dim, lon_dim))
-    da = make_single_chunk(da, (lat_dim, lon_dim))
-    return _orient_latitude_north_south(da, lat_dim)
-
-
-def prep_for_inv_spharm(da):
-    """
-        Prepare DataArray for use with inverse spharm (e.g. spectogrd)
-        
-        Parameters
-        ----------
-        da : xarray DataArray
-            Input DataArray
-        
-        Returns
-        -------
-        xr.DataArray, boolean
-            Array containing data that has been prepared for use with spharm, and a \
-                boolean indicating whether the data was latitudinally flipped
-    """
-    
-    da = stack_non_horizontal_dims(da, (_HARMONIC_DIM, ))
-    da = order_dims_first(da, (_HARMONIC_DIM, ))
-    return make_single_chunk(da, (_HARMONIC_DIM, ))
-
-
 # ===================================================================================================
 # grdtospec
 # ===================================================================================================
@@ -312,9 +312,9 @@ def grdtospec(da, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=None, unpack_w
         """
         if isinstance(da, darray.core.Array):
             if da.ndim == 3:
-                chunks = ((N_harmonics(n_trunc), ), da.chunks[-1])
+                chunks = ((_N_harmonics(n_trunc), ), da.chunks[-1])
             else:
-                chunks = ((N_harmonics(n_trunc), ))
+                chunks = ((_N_harmonics(n_trunc), ))
             return darray.map_blocks(st.grdtospec, da, n_trunc,
                                      chunks=chunks, dtype=np.complex, 
                                      drop_axis=(0, 1), new_axis=(0, ))
@@ -322,16 +322,16 @@ def grdtospec(da, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=None, unpack_w
             return st.grdtospec(da)
     
     if not prepped:
-        da, flipped = prep_for_spharm(da)
+        da, flipped = _prep_for_spharm(da)
 
     if n_trunc is None:
         n_trunc = int(da.sizes[lat_dim]/2) - 1
     
-    st = create_spharmt(da.sizes[lon_dim], da.sizes[lat_dim], gridtype=gridtype)
+    st = _create_spharmt(da.sizes[lon_dim], da.sizes[lat_dim], gridtype=gridtype)
 
     if _NON_HORIZONTAL_DIM in da.dims:
         output_core_dims = [[_HARMONIC_DIM, _NON_HORIZONTAL_DIM]]
-        output_sizes = {_HARMONIC_DIM: N_harmonics(n_trunc),
+        output_sizes = {_HARMONIC_DIM: _N_harmonics(n_trunc),
                         _NON_HORIZONTAL_DIM: da.sizes[_NON_HORIZONTAL_DIM]}
         coeffs = xr.apply_ufunc(_grdtospec, st, da, n_trunc,
                                 input_core_dims=[[], da.dims, []],
@@ -341,7 +341,7 @@ def grdtospec(da, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=None, unpack_w
                    .unstack(_NON_HORIZONTAL_DIM)
     else:
         output_core_dims = [[_HARMONIC_DIM]]
-        output_sizes = {_HARMONIC_DIM: N_harmonics(n_trunc)}
+        output_sizes = {_HARMONIC_DIM: _N_harmonics(n_trunc)}
 
         coeffs = xr.apply_ufunc(_grdtospec, st, da, n_trunc,
                                 input_core_dims=[[], da.dims, []],
@@ -350,11 +350,11 @@ def grdtospec(da, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=None, unpack_w
                                 exclude_dims=set((lat_dim, lon_dim)), dask='allowed')
     
     coeffs[_HARMONIC_DIM] = range(coeffs.sizes[_HARMONIC_DIM]) 
-    coeffs = add_attrs(coeffs, **{'xspharm_history':'grdtospec(..'
-                                  ' gridtype=' + gridtype + 
-                                  ', n_trunc=' + str(n_trunc) +
-                                  ', unpack_wavenumber_pairs=' + str(unpack_wavenumber_pairs) +
-                                  ', prepped=' + str(prepped) +')'})
+    coeffs = _add_attrs(coeffs, **{'xspharm_history':'grdtospec(..'
+                                   ' gridtype=' + gridtype + 
+                                   ', n_trunc=' + str(n_trunc) +
+                                   ', unpack_wavenumber_pairs=' + str(unpack_wavenumber_pairs) +
+                                   ', prepped=' + str(prepped) +')'})
         
     if unpack_wavenumber_pairs:
         return unpack_mn(coeffs, n_trunc)
@@ -413,14 +413,14 @@ def spectogrd(da, gridtype='gaussian', n_lat=None,  prepped=False, lat_name='lat
             da = repack_mn(da, da.sizes[_TOTAL_WAVENUMER_DIM]-1)
         elif _HARMONIC_DIM not in da.dims:
             raise ValueError('Unable to identify harmonic dimension(s)')
-        da = prep_for_inv_spharm(da)
+        da = _prep_for_inv_spharm(da)
     
     if n_lat is None:
         n_trunc = N_trunc(da.sizes[_HARMONIC_DIM])
         n_lat = 2 * (n_trunc + 1)
     n_lon = 2*n_lat
     
-    st = create_spharmt(n_lon, n_lat, gridtype=gridtype)
+    st = _create_spharmt(n_lon, n_lat, gridtype=gridtype)
 
     if _NON_HORIZONTAL_DIM in da.dims:
         output_core_dims = [[lat_name, lon_name, _NON_HORIZONTAL_DIM]]
@@ -446,10 +446,10 @@ def spectogrd(da, gridtype='gaussian', n_lat=None,  prepped=False, lat_name='lat
     lat, lon = get_spharm_grid(n_lat, gridtype)
     real[lat_name] = lat
     real[lon_name] = lon
-    real = add_attrs(real, **{'xspharm_history':'spectogrd(..'
-                              ' gridtype=' + gridtype + 
-                              ', n_lat=' + str(n_lat) +
-                              ', prepped=' + str(prepped) +')'})
+    real = _add_attrs(real, **{'xspharm_history':'spectogrd(..'
+                               ' gridtype=' + gridtype + 
+                               ', n_lat=' + str(n_lat) +
+                               ', prepped=' + str(prepped) +')'})
     return real
 
 
@@ -497,10 +497,10 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=No
     if n_trunc is None:
         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
         
-    u_grid, _ = prep_for_spharm(u_grid)
-    v_grid, flipped = prep_for_spharm(v_grid)
+    u_grid, _ = _prep_for_spharm(u_grid)
+    v_grid, flipped = _prep_for_spharm(v_grid)
     
-    st = create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
+    st = _create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
 
     psi, chi = xr.apply_ufunc(_getpsichi, st, u_grid, v_grid, n_trunc,
                                 input_core_dims=[[], u_grid.dims, v_grid.dims, []],
@@ -510,9 +510,9 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=No
     psichi = xr.merge([psi.unstack(_NON_HORIZONTAL_DIM).rename('psi'), 
                        chi.unstack(_NON_HORIZONTAL_DIM).rename('chi')])
         
-    return add_attrs(psichi, **{'xspharm_history':'getpsichi(..'
-                                ' gridtype=' + gridtype + 
-                                ', n_trunc=' + str(n_trunc) +')'})
+    return _add_attrs(psichi, **{'xspharm_history':'getpsichi(..'
+                                 ' gridtype=' + gridtype + 
+                                 ', n_trunc=' + str(n_trunc) +')'})
 
 
 # Tested, and takes same amount of time to do separately with map_blocks, i.e.:
@@ -554,19 +554,19 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=No
 #     if n_trunc is None:
 #         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
         
-#     u_grid, _ = prep_for_spharm(u_grid)
-#     v_grid, flipped = prep_for_spharm(v_grid)
+#     u_grid, _ = _prep_for_spharm(u_grid)
+#     v_grid, flipped = _prep_for_spharm(v_grid)
     
-#     st = create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
+#     st = _create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
 
 #     psi = xr.apply_ufunc(_getpsi, st, u_grid, v_grid, n_trunc,
 #                          input_core_dims=[[], u_grid.dims, v_grid.dims, []],
 #                          output_core_dims=[u_grid.dims],
 #                          dask='allowed').unstack(_NON_HORIZONTAL_DIM).rename('psi')
         
-#     return add_attrs(psi, **{'xspharm_history':'getpsi(..'
-#                              ' gridtype=' + gridtype + 
-#                              ', n_trunc=' + str(n_trunc) +')'})
+#     return _add_attrs(psi, **{'xspharm_history':'getpsi(..'
+#                               ' gridtype=' + gridtype + 
+#                               ', n_trunc=' + str(n_trunc) +')'})
 # def getchi(u_grid, v_grid, gridtype, n_trunc=None):
 #     """
 #         Returns velocity potential (chi) using spharm package
@@ -605,16 +605,16 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=No
 #     if n_trunc is None:
 #         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
         
-#     u_grid, _ = prep_for_spharm(u_grid)
-#     v_grid, flipped = prep_for_spharm(v_grid)
+#     u_grid, _ = _prep_for_spharm(u_grid)
+#     v_grid, flipped = _prep_for_spharm(v_grid)
     
-#     st = create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
+#     st = _create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
 
 #     chi = xr.apply_ufunc(_getchi, st, u_grid, v_grid, n_trunc,
 #                          input_core_dims=[[], u_grid.dims, v_grid.dims, []],
 #                          output_core_dims=[u_grid.dims],
 #                          dask='allowed').unstack(_NON_HORIZONTAL_DIM).rename('chi')
         
-#     return add_attrs(chi, **{'xspharm_history':'getchi(..'
-#                              ' gridtype=' + gridtype + 
-#                              ', n_trunc=' + str(n_trunc) +')'})
+#     return _add_attrs(chi, **{'xspharm_history':'getchi(..'
+#                               ' gridtype=' + gridtype + 
+#                               ', n_trunc=' + str(n_trunc) +')'})
