@@ -270,7 +270,7 @@ def get_power(coeffs):
     """
     if _HARMONIC_DIM in coeffs.dims:
         coeffs = unpack_mn(coeffs, n_trunc)
-    return integrate_along_m(abs(coeffs) ** 2)
+    return sum_along_m(abs(coeffs) ** 2)
 
 
 # ===================================================================================================
