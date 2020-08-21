@@ -322,7 +322,7 @@ def grdtospec(da, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=None, unpack_w
             return st.grdtospec(da)
     
     if not prepped:
-        da, flipped = _prep_for_spharm(da)
+        da, flipped = _prep_for_spharm(da, lat_dim=lat_dim, lon_dim=lon_dim)
 
     if n_trunc is None:
         n_trunc = int(da.sizes[lat_dim]/2) - 1
@@ -497,8 +497,8 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=No
     if n_trunc is None:
         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
         
-    u_grid, _ = _prep_for_spharm(u_grid)
-    v_grid, flipped = _prep_for_spharm(v_grid)
+    u_grid, _ = _prep_for_spharm(u_grid, lat_dim=lat_dim, lon_dim=lon_dim)
+    v_grid, flipped = _prep_for_spharm(v_grid, lat_dim=lat_dim, lon_dim=lon_dim)
     
     st = _create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
 
@@ -554,8 +554,8 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=No
 #     if n_trunc is None:
 #         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
         
-#     u_grid, _ = _prep_for_spharm(u_grid)
-#     v_grid, flipped = _prep_for_spharm(v_grid)
+#     u_grid, _ = _prep_for_spharm(u_grid, lat_dim=lat_dim, lon_dim=lon_dim)
+#     v_grid, flipped = _prep_for_spharm(v_grid, lat_dim=lat_dim, lon_dim=lon_dim)
     
 #     st = _create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
 
@@ -605,8 +605,8 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim='lat', lon_dim='lon', n_trunc=No
 #     if n_trunc is None:
 #         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
         
-#     u_grid, _ = _prep_for_spharm(u_grid)
-#     v_grid, flipped = _prep_for_spharm(v_grid)
+#     u_grid, _ = _prep_for_spharm(u_grid, lat_dim=lat_dim, lon_dim=lon_dim)
+#     v_grid, flipped = _prep_for_spharm(v_grid, lat_dim=lat_dim, lon_dim=lon_dim)
     
 #     st = _create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
 
