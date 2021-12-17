@@ -1,3 +1,5 @@
+"""Utility functions for xspharm"""
+
 import numpy as np
 import xarray as xr
 
@@ -11,7 +13,7 @@ _HARMONIC_DIM = "harmonic"
 _TOTAL_WAVENUMER_DIM = "n"
 _LONGITUDINAL_WAVENUMER_DIM = "m"
 _NON_HORIZONTAL_DIM = "non_horizontal"
-RADIUS = 6370997.0
+EARTH_RADIUS = 6370997.0
 
 
 def _wraps_dask_array(da):
@@ -50,7 +52,7 @@ def _create_spharmt(n_lon, n_lat, gridtype):
     """
     Initialise Spharmt object
     """
-    return Spharmt(n_lon, n_lat, rsphere=RADIUS, gridtype=gridtype)
+    return Spharmt(n_lon, n_lat, rsphere=EARTH_RADIUS, gridtype=gridtype)
 
 
 def _stack_non_horizontal_dims(da, non_horizontal_dims):
@@ -117,15 +119,16 @@ def _prep_for_spharm(da, lat_dim="lat", lon_dim="lon"):
         Returns
         -------
         xr.DataArray, boolean
-            Array containing data that has been prepared for use with spharm, and a \
-                boolean indicating whether the data was latitudinally flipped
+            Array containing data that has been prepared for use with \
+            spharm, and a  boolean indicating whether the data was \
+            latitudinally flipped
     """
 
     def _orient_latitude_north_south(da, lat_dim):
         """
         Orients data such that northern latitudes come first
-        Returns the transformed array as well as flag noting if the data were
-        flipped.
+        Returns the transformed array as well as flag noting if the \
+        data were flipped.
         """
         if all(da[lat_dim].diff(lat_dim) > 0.0):
             return _flip_lat(da, lat_dim), True
@@ -150,8 +153,9 @@ def _prep_for_inv_spharm(da):
         Returns
         -------
         xr.DataArray, boolean
-            Array containing data that has been prepared for use with spharm, and a \
-                boolean indicating whether the data was latitudinally flipped
+            Array containing data that has been prepared for use with \
+            spharm, and a boolean indicating whether the data was \
+            latitudinally flipped
     """
 
     da = _stack_non_horizontal_dims(da, (_HARMONIC_DIM,))
@@ -162,6 +166,20 @@ def _prep_for_inv_spharm(da):
 def get_spharm_grid(n_lat, gridtype):
     """
     Generate spharm latitude-longitude grid.
+
+    Parameters
+    ----------
+    n_lat : int
+        Number of latitude points
+    gridtype : str
+        Grid type to return. Options are "gaussian" or "regular"
+
+    Returns
+    -------
+    lat : np.array
+        Array of grid latitude points
+    lon : np.array
+        Array of grid longitude points
     """
     if gridtype == "gaussian":
         lat = spharm.gaussian_lats_wts(n_lat)[0]
@@ -179,7 +197,22 @@ def get_spharm_grid(n_lat, gridtype):
 
 def repack_mn(da, n_trunc):
     """
-    Pack m-n wavenumber pairs into single dimension ordered as expected by spharm.spectogrd
+        Pack m-n wavenumber pairs into single dimension ordered as \
+        expected by spharm.spectogrd
+
+        Parameters
+        ----------
+        da : xr.DataArray
+            Array containing _LONGITUDINAL_WAVENUMER_DIM and \
+            _TOTAL_WAVENUMER_DIM to repack along single dimension
+        n_trunc : int
+            Spectral truncation limit of data in input array
+
+        Returns
+        -------
+        xr.DataArray, boolean
+            Array containing data unpacked along a new _HARMONIC_DIM \
+            dimension
     """
     to_concat = []
     prev = 0
@@ -198,7 +231,20 @@ def repack_mn(da, n_trunc):
 
 def unpack_mn(da, n_trunc):
     """
-    Unpack output from grdtospec into m-n wavenumber pairs
+        Unpack output from grdtospec into m-n wavenumber pairs
+
+        Parameters
+        ----------
+        da : xr.DataArray
+            Array containing _HARMONIC_DIM to be unpacked
+        n_trunc : int
+            Spectral truncation limit of data in input array
+
+        Returns
+        -------
+        xr.DataArray, boolean
+            Array containing data unpacked along a new dimensions \
+            _LONGITUDINAL_WAVENUMER_DIM and _TOTAL_WAVENUMER_DIM
     """
     to_concat = []
     prev = 0
@@ -217,9 +263,10 @@ def unpack_mn(da, n_trunc):
 
 def sum_along_m(coeffs):
     """
-        Returns the sum along the longitudinal wavenumber dimension of the provided coefficients \
-            computed using spharm, accounting for the fact that spharm returns one side of the \
-            decomposition
+        Returns the sum along the longitudinal wavenumber dimension \
+        of the provided coefficients computed using spharm, \
+        accounting for the fact that spharm returns one side of the \
+        decomposition
 
         Parameters
         ----------
@@ -229,7 +276,8 @@ def sum_along_m(coeffs):
         Returns
         -------
         xr.DataArray
-            Array containing the sum of the coefficients along the longitudinal wavenumber
+            Array containing the sum of the coefficients along the \
+            longitudinal wavenumber
     """
     if _HARMONIC_DIM in coeffs.dims:
         raise ValueError(
@@ -242,9 +290,10 @@ def sum_along_m(coeffs):
 
 def mean_along_m(coeffs):
     """
-        Returns the mean along the longitudinal wavenumber dimension of the provided coefficients \
-            computed using spharm, accounting for the fact that spharm returns one side of the \
-            decomposition
+        Returns the mean along the longitudinal wavenumber dimension \
+        of the provided coefficients computed using spharm, \
+        accounting for the fact that spharm returns one side of the \
+        decomposition
 
         Parameters
         ----------
@@ -254,7 +303,8 @@ def mean_along_m(coeffs):
         Returns
         -------
         xr.DataArray
-            Array containing the mean of the coefficients along the longitudinal wavenumber
+            Array containing the mean of the coefficients along the \
+            longitudinal wavenumber
     """
     if _HARMONIC_DIM in coeffs.dims:
         raise ValueError(
@@ -267,17 +317,18 @@ def mean_along_m(coeffs):
 
 def get_power(coeffs):
     """
-    Returns the power, S(n), given the spherical harmonic coefficients computed using xspharm
+        Returns the power, S(n), given the spherical harmonic \
+        coefficients computed using xspharm
 
-    Parameters
-    ----------
-    coeffs : xarray DataArray
-        Array containing spherical harmonic coefficients
+        Parameters
+        ----------
+        coeffs : xarray DataArray
+            Array containing spherical harmonic coefficients
 
-    Returns
-    -------
-    xr.DataArray
-        Array containing the power, S(n)
+        Returns
+        -------
+        xr.DataArray
+            Array containing the power, S(n)
     """
     if _HARMONIC_DIM in coeffs.dims:
         raise ValueError(

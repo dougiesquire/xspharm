@@ -1,3 +1,5 @@
+"""Wrapped pyspharm functions"""
+
 import numpy as np
 import xarray as xr
 import dask.array as dsa
@@ -21,38 +23,48 @@ from .utils import (
 def grdtospec(
     da,
     gridtype,
-    lat_dim="lat",
-    lon_dim="lon",
     n_trunc=None,
     unpack_wavenumber_pairs=False,
     prepped=False,
+    lat_dim="lat",
+    lon_dim="lon",
 ):
     """
-        Returns complex spherical harmonic coefficients resulting from the spherical harmonic analysis \
-                of da using spharm package
-        Note, the spharm coefficents are scaled such that they mush be divided by the sqrt(2) in order \
-            to sum to the variance
+        Returns complex spherical harmonic coefficients resulting \
+        from the spherical harmonic analysis of da using spharm \
+        package. Note, the spharm coefficents are scaled such that \
+        they must be divided by the sqrt(2) in order to sum to the \
+        variance
 
         Parameters
         ----------
         da : xarray DataArray
-            Array of real space data to use to compute spherical harmonics. Must contain at least latitude and \
-                longitude dimensions, with either regular or Gaussian gridding.
-        gridtype : "gaussian" or "regular"
-            Grid type of da
+            Array of real space data to use to compute spherical \
+            harmonics. Must contain at least latitude and longitude \
+            dimensions, with either regular or Gaussian gridding.
+        gridtype : str
+            Grid type of da. Options are "gaussian" or "regular"
         n_trunc : int, optional
             Spectral truncation limit
         unpack_wavenumber_pairs : boolean
-            Set to True to unpack coefficients onto total and longitudinal wavenumbers. Otherwise returns \
-                coefficients along a single dimension, ordered as output by spharm.grdtospec
+            Set to True to unpack coefficients onto total and \
+            longitudinal wavenumbers. Otherwise returns coefficients \
+            along a single dimension, ordered as output by \
+            spharm.grdtospec
         prepped : boolean
-            Set to True if data is formatted (stacked, ordered and chunked) such that it can be handed directly \
-                to spharm. Default is False
+            Set to True if data is formatted (stacked, ordered and \
+            chunked) such that it can be handed directly to spharm. \
+            Default is False
+        lat_dim : str, optional
+            The name of the latitude dimension
+        lon_dim : str, optional
+            The name of the longitude dimension
 
         Returns
         -------
         xarray DataArray
-            Array containing the complex spectral harmonic coefficients of da
+            Array containing the complex spectral harmonic \
+            coefficients of da
     """
 
     def _grdtospec(st, da, n_trunc):
@@ -144,27 +156,37 @@ def spectogrd(
     da, gridtype="gaussian", n_lat=None, prepped=False, lat_name="lat", lon_name="lon"
 ):
     """
-        Returns the real-space fields resulting from the spherical harmonic synthesis of da using spharm package
+        Returns the real-space fields resulting from the spherical \
+        harmonic synthesis of da using spharm package
 
         Parameters
         ----------
         da : xarray DataArray
-            Array of spherical haramonic coefficients. Coefficients must either be ordered along the dimension, \
-                _HARMONIC_DIM, in the order expected by spharm.spectogrd, or must be stacked according to their \
-                total and longitudinal wavenumbers along dimensions _TOTAL_WAVENUMER_DIM and \
-                _LONGITUDINAL_WAVENUMER_DIM, respectively
-        gridtype : "gaussian" or "regular"
-            Desired gridtype type of output
+            Array of spherical haramonic coefficients. Coefficients \
+            must either be ordered along the dimension, _HARMONIC_DIM, \
+            in the order expected by spharm.spectogrd, or must be \
+            stacked according to their total and longitudinal \
+            wavenumbers along dimensions _TOTAL_WAVENUMER_DIM and \
+            _LONGITUDINAL_WAVENUMER_DIM, respectively
+        gridtype : str
+            Desired gridtype type of output. Options are "gaussian" or \
+            "regular"
         n_lat : int, optional
             Desired number of latitudes in output
         prepped : boolean, optional
-            Set to True if data is formatted (stacked, ordered and chunked) such that it can be handed directly \
-                to spharm. Default is False
+            Set to True if data is formatted (stacked, ordered and \
+            chunked) such that it can be handed directly to spharm. \
+            Default is False
+        lat_dim : str, optional
+            The name of the latitude dimension
+        lon_dim : str, optional
+            The name of the longitude dimension
 
         Returns
         -------
         xarray DataArray
-            Array containing the complex spherical harmonic synthesis of da
+            Array containing the complex spherical harmonic synthesis \
+            of da
     """
 
     def N_trunc(n_harmonics):
@@ -252,7 +274,8 @@ def spectogrd(
 
 def getpsichi(u_grid, v_grid, gridtype, lat_dim="lat", lon_dim="lon", n_trunc=None):
     """
-    Returns streamfunction (psi) and velocity potential (chi) using spharm package
+    Returns streamfunction (psi) and velocity potential (chi) using \
+    spharm package
 
     Parameters
     ----------
@@ -260,8 +283,12 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim="lat", lon_dim="lon", n_trunc=No
         Array containing grid of zonal winds
     v_grid : xarray DataArray
         Array containing grid of meridional winds
-    gridtype : "gaussian" or "regular"
-        Grid type of da
+    gridtype : str
+        Grid type of da. Options are "gaussian" or "regular"
+    lat_dim : str, optional
+        The name of the latitude dimension
+    lon_dim : str, optional
+        The name of the longitude dimension
     n_trunc : int, optional
         Spectral truncation limit
 
