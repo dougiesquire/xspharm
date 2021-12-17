@@ -1,15 +1,13 @@
-name: xspharm
+name: xspharm-test
 channels:
   - conda-forge
-  - defaults
 dependencies:
-  - python=3.9
+  - python=3.8
   - xarray
-  - dask
+  - numpy
+  - dask-core
   - pyspharm
-  - ipykernel
   - pytest
-  - pre-commit
   - pip
   - pip:
     - codecov
