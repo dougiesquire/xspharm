@@ -2,7 +2,7 @@
 -----------------------------
 A dask-enabled wrapper for `pyspharm` (which wraps SPHEREPACK)
 
-Taken, adapted and extended from [spencerclark](https://github.com/spencerkclark)'s code base: https://gist.github.com/spencerkclark/6a8e05a492111e52d8d8fb407d332611
+Taken, adapted and extended from [spencerclark](https://github.com/spencerkclark)'s [gist](https://gist.github.com/spencerkclark/6a8e05a492111e52d8d8fb407d332611)
 
 ### Installation
 
