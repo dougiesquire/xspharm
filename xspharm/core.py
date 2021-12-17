@@ -1,295 +1,21 @@
-import spharm
 import numpy as np
 import xarray as xr
-import dask.array as darray
-from spharm import Spharmt
+import dask.array as dsa
 
-_HARMONIC_DIM = "harmonic"
-_TOTAL_WAVENUMER_DIM = "n"
-_LONGITUDINAL_WAVENUMER_DIM = "m"
-_NON_HORIZONTAL_DIM = "non_horizontal"
-RADIUS = 6370997.0
-
-# ===================================================================================================
-# Utilities
-# ===================================================================================================
-
-
-def _wraps_dask_array(da):
-    """
-    Check if an xarray object wraps a dask array
-    """
-    return isinstance(da.data, darray.core.Array)
-
-
-def _get_other_dims(da, dim_exclude):
-    """
-    Returns all dimensions in provided xarray object excluding dim_exclude
-    """
-
-    dims = da.dims
-
-    if dim_exclude is None:
-        return dims
-    else:
-        if isinstance(dims, str):
-            dims = [dims]
-        if isinstance(dim_exclude, str):
-            dim_exclude = [dim_exclude]
-
-        return tuple(set(dims) - set(dim_exclude))
-
-
-def _flip_lat(da, lat_name):
-    """
-    Flip latitude dimension
-    """
-    return da.isel(**{lat_name: slice(None, None, -1)})
-
-
-def _create_spharmt(n_lon, n_lat, gridtype):
-    """
-    Initialise Spharmt object
-    """
-    return Spharmt(n_lon, n_lat, rsphere=RADIUS, gridtype=gridtype)
-
-
-def _stack_non_horizontal_dims(da, non_horizontal_dims):
-    """
-    If present, stack all non-horizontal dims onto one dimension
-    """
-    dims_to_stack = _get_other_dims(da, non_horizontal_dims)
-    if dims_to_stack:
-        da = da.stack(**{_NON_HORIZONTAL_DIM: dims_to_stack})
-    return da
-
-
-def _N_harmonics(n_trunc):
-    """
-    Return the number of harmonics
-    """
-    return (n_trunc + 1) * (n_trunc + 2) // 2
-
-
-def _order_dims_first(da, first_dims):
-    """
-    Order dims such that first_dims come first
-    """
-    order = first_dims + _get_other_dims(da, first_dims)
-    return da.transpose(*order)
-
-
-def _make_single_chunk(da, dims):
-    """
-    If underlying data are chunked, rechunk specified dims to single chunk
-    """
-    chunks = {dim: -1 for dim in dims}
-
-    if _wraps_dask_array(da):
-        da = da.chunk(chunks)
-    return da
-
-
-def _add_attrs(da, **kwargs):
-    """
-    Add attributes to xarray object
-    """
-    for key, value in kwargs.items():
-        if key in da.attrs:
-            da.attrs[key] = da.attrs[key] + value
-        else:
-            da.attrs[key] = value
-    return da
-
-
-def _prep_for_spharm(da, lat_dim="lat", lon_dim="lon"):
-    """
-        Prepare DataArray for use with spharm (e.g. grdtospec)
-
-        Parameters
-        ----------
-        da : xarray DataArray
-            Input DataArray
-        lat_dim : str
-            Name of latitude dimension
-        lon_dim : str
-            Name of longitude dimension
-
-        Returns
-        -------
-        xr.DataArray, boolean
-            Array containing data that has been prepared for use with spharm, and a \
-                boolean indicating whether the data was latitudinally flipped
-    """
-
-    def _orient_latitude_north_south(da, lat_dim):
-        """
-        Orients data such that northern latitudes come first
-        Returns the transformed array as well as flag noting if the data were
-        flipped.
-        """
-        if all(da[lat_dim].diff(lat_dim) > 0.0):
-            return _flip_lat(da, lat_dim), True
-        else:
-            return da, False
-
-    da = _stack_non_horizontal_dims(da, (lat_dim, lon_dim))
-    da = _order_dims_first(da, (lat_dim, lon_dim))
-    da = _make_single_chunk(da, (lat_dim, lon_dim))
-    return _orient_latitude_north_south(da, lat_dim)
-
-
-def _prep_for_inv_spharm(da):
-    """
-        Prepare DataArray for use with inverse spharm (e.g. spectogrd)
-
-        Parameters
-        ----------
-        da : xarray DataArray
-            Input DataArray
-
-        Returns
-        -------
-        xr.DataArray, boolean
-            Array containing data that has been prepared for use with spharm, and a \
-                boolean indicating whether the data was latitudinally flipped
-    """
-
-    da = _stack_non_horizontal_dims(da, (_HARMONIC_DIM,))
-    da = _order_dims_first(da, (_HARMONIC_DIM,))
-    return _make_single_chunk(da, (_HARMONIC_DIM,))
-
-
-def get_spharm_grid(n_lat, gridtype):
-    """
-    Generate spharm latitude-longitude grid.
-    """
-    if gridtype == "gaussian":
-        lat = spharm.gaussian_lats_wts(n_lat)[0]
-        lon = np.linspace(0, 360, 2 * len(lat) + 1)[0:-1]
-    elif gridtype == "regular":
-        if n_lat % 2 == 0:
-            lat = np.linspace(90 - 90 / n_lat, -90 + 90 / n_lat, n_lat)
-        else:
-            lat = np.linspace(90, -90, n_lat)
-        lon = np.linspace(0, 360, 2 * len(lat) + 1)[0:-1]
-    else:
-        raise ValueError("Unrecognised gridtype")
-    return lat, lon
-
-
-def repack_mn(da, n_trunc):
-    """
-    Pack m-n wavenumber pairs into single dimension ordered as expected by spharm.spectogrd
-    """
-    to_concat = []
-    prev = 0
-    for m in range(n_trunc + 1):
-        da_h = (
-            da.sel({_LONGITUDINAL_WAVENUMER_DIM: m}, drop=True)
-            .sel({_TOTAL_WAVENUMER_DIM: slice(m, n_trunc + 1)})
-            .rename({_TOTAL_WAVENUMER_DIM: _HARMONIC_DIM})
-        )
-        da_h[_HARMONIC_DIM] = range(prev, prev + n_trunc - m + 1)
-        to_concat.append(da_h)
-        prev += n_trunc - m + 1
-
-    return xr.concat(to_concat, dim=_HARMONIC_DIM).chunk({_HARMONIC_DIM: -1})
-
-
-def unpack_mn(da, n_trunc):
-    """
-    Unpack output from grdtospec into m-n wavenumber pairs
-    """
-    to_concat = []
-    prev = 0
-    for n in range(n_trunc + 1):
-        da_n = da.isel({_HARMONIC_DIM: slice(prev, prev + n_trunc - n + 1)}).rename(
-            {_HARMONIC_DIM: _TOTAL_WAVENUMER_DIM}
-        )
-        da_n[_TOTAL_WAVENUMER_DIM] = range(n, n_trunc + 1)
-        to_concat.append(da_n)
-        prev += n_trunc - n + 1
-
-    unpacked = xr.concat(to_concat, dim=_LONGITUDINAL_WAVENUMER_DIM)
-    unpacked[_LONGITUDINAL_WAVENUMER_DIM] = range(0, n_trunc + 1)
-    return unpacked
-
-
-def sum_along_m(coeffs):
-    """
-        Returns the sum along the longitudinal wavenumber dimension of the provided coefficients \
-            computed using spharm, accounting for the fact that spharm returns one side of the \
-            decomposition
-
-        Parameters
-        ----------
-        coeffs : xarray DataArray
-            Array containing spherical harmonic coefficients
-
-        Returns
-        -------
-        xr.DataArray
-            Array containing the sum of the coefficients along the longitudinal wavenumber
-    """
-    if _HARMONIC_DIM in coeffs.dims:
-        raise ValueError(
-            "Please first unpack the coefficients into m-n wavenumber pairs using unpack_mn"
-        )
-    return xr.concat(
-        [coeffs.sel(m=0), 2 * coeffs.sel(m=slice(1, len(coeffs.m) + 1))], dim="m"
-    ).sum("m")
-
-
-def mean_along_m(coeffs):
-    """
-        Returns the mean along the longitudinal wavenumber dimension of the provided coefficients \
-            computed using spharm, accounting for the fact that spharm returns one side of the \
-            decomposition
-
-        Parameters
-        ----------
-        coeffs : xarray DataArray
-            Array containing spherical harmonic coefficients
-
-        Returns
-        -------
-        xr.DataArray
-            Array containing the mean of the coefficients along the longitudinal wavenumber
-    """
-    if _HARMONIC_DIM in coeffs.dims:
-        raise ValueError(
-            "Please first unpack the coefficients into m-n wavenumber pairs using unpack_mn"
-        )
-    return xr.concat(
-        [coeffs.sel(m=0), 2 * coeffs.sel(m=slice(1, len(coeffs.m) + 1))], dim="m"
-    ).mean("m")
-
-
-def get_power(coeffs):
-    """
-    Returns the power, S(n), given the spherical harmonic coefficients computed using xspharm
-
-    Parameters
-    ----------
-    coeffs : xarray DataArray
-        Array containing spherical harmonic coefficients
-
-    Returns
-    -------
-    xr.DataArray
-        Array containing the power, S(n)
-    """
-    if _HARMONIC_DIM in coeffs.dims:
-        raise ValueError(
-            "Please first unpack the coefficients into m-n wavenumber pairs using unpack_mn"
-        )
-    return sum_along_m(abs(coeffs) ** 2)
-
-
-# ===================================================================================================
-# grdtospec
-# ===================================================================================================
+from .utils import (
+    _HARMONIC_DIM,
+    _TOTAL_WAVENUMER_DIM,
+    _LONGITUDINAL_WAVENUMER_DIM,
+    _NON_HORIZONTAL_DIM,
+    _N_harmonics,
+    _create_spharmt,
+    _add_attrs,
+    _prep_for_spharm,
+    _prep_for_inv_spharm,
+    get_spharm_grid,
+    repack_mn,
+    unpack_mn,
+)
 
 
 def grdtospec(
@@ -333,12 +59,12 @@ def grdtospec(
         """
         Wrap Spharmt.grdtospec to be dask compatible
         """
-        if isinstance(da, darray.core.Array):
+        if isinstance(da, dsa.core.Array):
             if da.ndim == 3:
                 chunks = ((_N_harmonics(n_trunc),), da.chunks[-1])
             else:
                 chunks = (_N_harmonics(n_trunc),)
-            return darray.map_blocks(
+            return dsa.map_blocks(
                 st.grdtospec,
                 da,
                 n_trunc,
@@ -414,11 +140,6 @@ def grdtospec(
         return coeffs
 
 
-# ===================================================================================================
-# spectogrd
-# ===================================================================================================
-
-
 def spectogrd(
     da, gridtype="gaussian", n_lat=None, prepped=False, lat_name="lat", lon_name="lon"
 ):
@@ -453,12 +174,12 @@ def spectogrd(
         """
         Transform a variable from spectral to grid space
         """
-        if isinstance(da, darray.core.Array):
+        if isinstance(da, dsa.core.Array):
             if da.ndim == 2:
                 chunks = ((st.nlat,), (st.nlon,), da.chunks[-1])
             else:
                 chunks = ((st.nlat,), (st.nlon,))
-            return darray.map_blocks(
+            return dsa.map_blocks(
                 st.spectogrd, da, chunks=chunks, drop_axis=(0,), new_axis=(0, 1)
             )
         else:
@@ -529,11 +250,6 @@ def spectogrd(
     return real
 
 
-# ===================================================================================================
-# getpsichi
-# ===================================================================================================
-
-
 def getpsichi(u_grid, v_grid, gridtype, lat_dim="lat", lon_dim="lon", n_trunc=None):
     """
     Returns streamfunction (psi) and velocity potential (chi) using spharm package
@@ -559,9 +275,9 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim="lat", lon_dim="lon", n_trunc=No
         """
         Wrap Spharmt.getpsichi to be dask compatible
         """
-        if isinstance(u, darray.core.Array):
+        if isinstance(u, dsa.core.Array):
 
-            @darray.as_gufunc(
+            @dsa.as_gufunc(
                 signature="(),(),()->(),()",
                 output_dtypes=(float, float),
                 allow_rechunk=True,
@@ -610,108 +326,3 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim="lat", lon_dim="lon", n_trunc=No
             " gridtype=" + gridtype + ", n_trunc=" + str(n_trunc) + ")"
         }
     )
-
-
-# Tested, and takes same amount of time to do separately with map_blocks, i.e.:
-# def getpsi(u_grid, v_grid, gridtype, n_trunc=None):
-#     """
-#         Returns stream function (psi) using spharm package
-
-#         Parameters
-#         ----------
-#         u_grid : xarray DataArray
-#             Array containing grid of zonal winds
-#         v_grid : xarray DataArray
-#             Array containing grid of meridional winds
-#         gridtype : "gaussian" or "regular"
-#             Grid type of da
-#         n_trunc : int, optional
-#             Spectral truncation limit
-
-#         Returns
-#         -------
-#         xarray DataArray
-#             Arrays containing the stream function
-#     """
-
-#     def _getpsi(st, u, v, n_trunc):
-#         """
-#             Wrap Spharmt.getpsichi to be dask compatible
-#         """
-#         def _ggetpsi(st, u, v, n_trunc):
-#             psi, _ = st.getpsichi(u, v, n_trunc)
-#             return psi
-
-#         if isinstance(u, darray.core.Array):
-#             return darray.map_blocks(_ggetpsi, st, u, v, n_trunc,
-#                                      dtype=np.float)
-#         else:
-#             return _ggetpsi(st, u, v, n_trunc)
-
-#     if n_trunc is None:
-#         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
-
-#     u_grid, _ = _prep_for_spharm(u_grid, lat_dim=lat_dim, lon_dim=lon_dim)
-#     v_grid, flipped = _prep_for_spharm(v_grid, lat_dim=lat_dim, lon_dim=lon_dim)
-
-#     st = _create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
-
-#     psi = xr.apply_ufunc(_getpsi, st, u_grid, v_grid, n_trunc,
-#                          input_core_dims=[[], u_grid.dims, v_grid.dims, []],
-#                          output_core_dims=[u_grid.dims],
-#                          dask='allowed').unstack(_NON_HORIZONTAL_DIM).rename('psi')
-
-#     return _add_attrs(psi, **{'xspharm_history':'getpsi(..'
-#                               ' gridtype=' + gridtype +
-#                               ', n_trunc=' + str(n_trunc) +')'})
-# def getchi(u_grid, v_grid, gridtype, n_trunc=None):
-#     """
-#         Returns velocity potential (chi) using spharm package
-
-#         Parameters
-#         ----------
-#         u_grid : xarray DataArray
-#             Array containing grid of zonal winds
-#         v_grid : xarray DataArray
-#             Array containing grid of meridional winds
-#         gridtype : "gaussian" or "regular"
-#             Grid type of da
-#         n_trunc : int, optional
-#             Spectral truncation limit
-
-#         Returns
-#         -------
-#         xarray DataArray
-#             Arrays containing the stream function
-#     """
-
-#     def _getchi(st, u, v, n_trunc):
-#         """
-#             Wrap Spharmt.getpsichi to be dask compatible
-#         """
-#         def _ggetchi(st, u, v, n_trunc):
-#             _, chi = st.getpsichi(u, v, n_trunc)
-#             return chi
-
-#         if isinstance(u, darray.core.Array):
-#             return darray.map_blocks(_ggetchi, st, u, v, n_trunc,
-#                                      dtype=np.float)
-#         else:
-#             return _ggetchi(st, u, v, n_trunc)
-
-#     if n_trunc is None:
-#         n_trunc = int(u_grid.sizes[lat_dim]/2) - 1
-
-#     u_grid, _ = _prep_for_spharm(u_grid, lat_dim=lat_dim, lon_dim=lon_dim)
-#     v_grid, flipped = _prep_for_spharm(v_grid, lat_dim=lat_dim, lon_dim=lon_dim)
-
-#     st = _create_spharmt(u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype)
-
-#     chi = xr.apply_ufunc(_getchi, st, u_grid, v_grid, n_trunc,
-#                          input_core_dims=[[], u_grid.dims, v_grid.dims, []],
-#                          output_core_dims=[u_grid.dims],
-#                          dask='allowed').unstack(_NON_HORIZONTAL_DIM).rename('chi')
-
-#     return _add_attrs(chi, **{'xspharm_history':'getchi(..'
-#                               ' gridtype=' + gridtype +
-#                               ', n_trunc=' + str(n_trunc) +')'})
