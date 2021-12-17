@@ -1,6 +1,6 @@
 # **xspharm** #
 -----------------------------
-A dask-enabled wrapper for `pyspharm` (which wraps SPHEREPACK)
+A simple dask-enabled xarray wrapper for `pyspharm` (which wraps SPHEREPACK)
 
 Taken, adapted and extended from [spencerclark](https://github.com/spencerkclark)'s [gist](https://gist.github.com/spencerkclark/6a8e05a492111e52d8d8fb407d332611)
 
