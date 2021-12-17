@@ -2,7 +2,7 @@ name: xspharm-test
 channels:
   - conda-forge
 dependencies:
-  - python=3.10
+  - python=3.7
   - xarray
   - numpy
   - dask-core
