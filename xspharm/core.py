@@ -1,4 +1,3 @@
-# Adadpted from spencerclark's code base: https://gist.github.com/spencerkclark/6a8e05a492111e52d8d8fb407d332611
 import spharm
 import numpy as np
 import xarray as xr
