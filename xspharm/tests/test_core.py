@@ -94,6 +94,7 @@ def test_power(gridtype, n_broadcast_dims, dask):
 
     coeffs = xspharm.grdtospec(data, gridtype, n_trunc=29)
     # Scale coefficients by sqrt(2)
+    # see https://github.com/dougiesquire/xspharm/blob/master/notebooks/pyspharm.ipynb
     coeffs = coeffs / np.sqrt(2)
 
     Sff = xspharm.utils.get_power(coeffs).sum("n")
