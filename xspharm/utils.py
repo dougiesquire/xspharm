@@ -287,7 +287,7 @@ def sum_along_m(coeffs):
             longitudinal wavenumber
     """
     if _HARMONIC_DIM in coeffs.dims:
-        n_trunc = _n_trunc_from_n_harmonics(coeffs.sizes(_HARMONIC_DIM))
+        n_trunc = _n_trunc_from_n_harmonics(coeffs.sizes[_HARMONIC_DIM])
         coeffs = unpack_mn(coeffs, n_trunc)
     return xr.concat(
         [coeffs.sel(m=0), 2 * coeffs.sel(m=slice(1, len(coeffs.m) + 1))], dim="m"
@@ -313,7 +313,7 @@ def mean_along_m(coeffs):
             longitudinal wavenumber
     """
     if _HARMONIC_DIM in coeffs.dims:
-        n_trunc = _n_trunc_from_n_harmonics(coeffs.sizes(_HARMONIC_DIM))
+        n_trunc = _n_trunc_from_n_harmonics(coeffs.sizes[_HARMONIC_DIM])
         coeffs = unpack_mn(coeffs, n_trunc)
     return xr.concat(
         [coeffs.sel(m=0), 2 * coeffs.sel(m=slice(1, len(coeffs.m) + 1))], dim="m"
@@ -336,6 +336,56 @@ def get_power(coeffs):
             Array containing the power, S(n)
     """
     if _HARMONIC_DIM in coeffs.dims:
-        n_trunc = _n_trunc_from_n_harmonics(coeffs.sizes(_HARMONIC_DIM))
+        n_trunc = _n_trunc_from_n_harmonics(coeffs.sizes[_HARMONIC_DIM])
         coeffs = unpack_mn(coeffs, n_trunc)
     return sum_along_m(abs(coeffs) ** 2)
+
+
+def estimate_cell_areas(ds, lat_dim="lat", lon_dim="lon"):
+    """
+    Calculate the area of each grid cell.
+    Stolen/adapted from: https://towardsdatascience.com/the-correct-way-to-average-the-globe-92ceecd172b7
+
+    Parameters
+    ----------
+    ds : xarray DataArray
+        Input array containing latitude and longitude dimensions to calculate cell areas
+    lat_dim : str, optional
+        The name of the latitude dimension
+    lon_dim : str, optional
+        The name of the longitude dimension
+
+    Returns
+    -------
+    xr.DataArray
+        Array containing estimates of the cell areas
+    """
+
+    from numpy import deg2rad, cos, tan, arctan
+
+    def _earth_radius(lat):
+        """Calculate radius of Earth assuming oblate spheroid defined by WGS84"""
+
+        # define oblate spheroid from WGS84
+        a = 6378137
+        b = 6356752.3142
+        e2 = 1 - (b ** 2 / a ** 2)
+
+        # convert from geodecic to geocentric
+        # see equation 3-110 in WGS84
+        lat = deg2rad(lat)
+        lat_gc = arctan((1 - e2) * tan(lat))
+
+        # radius equation
+        # see equation 3-107 in WGS84
+        return (a * (1 - e2) ** 0.5) / (1 - (e2 * cos(lat_gc) ** 2)) ** 0.5
+
+    R = _earth_radius(ds[lat_dim])
+
+    dlat = deg2rad(ds[lat_dim].diff(lat_dim))
+    dlon = deg2rad(ds[lon_dim].diff(lon_dim))
+
+    dy = abs(dlat) * R
+    dx = abs(dlon) * R * cos(deg2rad(ds[lat_dim]))
+
+    return dy * dx
