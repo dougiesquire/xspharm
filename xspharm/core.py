@@ -152,9 +152,7 @@ def grdtospec(
         return coeffs
 
 
-def spectogrd(
-    da, gridtype="gaussian", n_lat=None, prepped=False, lat_name="lat", lon_name="lon"
-):
+def spectogrd(da, gridtype, n_lat=None, prepped=False, lat_name="lat", lon_name="lon"):
     """
         Returns the real-space fields resulting from the spherical \
         harmonic synthesis of da using spharm package
@@ -172,7 +170,8 @@ def spectogrd(
             Desired gridtype type of output. Options are "gaussian" or \
             "regular"
         n_lat : int, optional
-            Desired number of latitudes in output
+            Desired number of latitudes in output. Defaults to \
+            2*(n_trunc+1)
         prepped : boolean, optional
             Set to True if data is formatted (stacked, ordered and \
             chunked) such that it can be handed directly to spharm. \
