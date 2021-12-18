@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/dougiesquire/xspharm/actions/workflows/tests.yml/badge.svg)](https://github.com/dougiesquire/xspharm/actions/workflows/tests.yml)
 [![pre-commit](https://github.com/dougiesquire/xspharm/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/dougiesquire/xspharm/actions/workflows/pre-commit.yml)
-# [![codecov](https://codecov.io/gh/dougiesquire/xeof/branch/master/graph/badge.svg?token=HMIIN0GGKL)](https://codecov.io/gh/dougiesquire/xeof)
+[![codecov](https://codecov.io/gh/dougiesquire/xspharm/branch/master/graph/badge.svg?token=XPK4V5X1TH)](https://codecov.io/gh/dougiesquire/xspharm)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/dougiesquire/xspharm/blob/master/LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/python/black)
 
