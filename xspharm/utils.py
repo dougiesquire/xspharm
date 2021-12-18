@@ -103,6 +103,13 @@ def _add_attrs(da, **kwargs):
     return da
 
 
+def _n_trunc_from_n_harmonics(n_harmonics):
+    """
+    Return the truncation limit, given the number of harmonics
+    """
+    return int(np.sqrt(2 * n_harmonics) - 1)
+
+
 def _prep_for_spharm(da, lat_dim="lat", lon_dim="lon"):
     """
         Prepare DataArray for use with spharm (e.g. grdtospec)
@@ -280,9 +287,8 @@ def sum_along_m(coeffs):
             longitudinal wavenumber
     """
     if _HARMONIC_DIM in coeffs.dims:
-        raise ValueError(
-            "Please first unpack the coefficients into m-n wavenumber pairs using unpack_mn"
-        )
+        n_trunc = _n_trunc_from_n_harmonics(coeffs.sizes(_HARMONIC_DIM))
+        coeffs = unpack_mn(coeffs, n_trunc)
     return xr.concat(
         [coeffs.sel(m=0), 2 * coeffs.sel(m=slice(1, len(coeffs.m) + 1))], dim="m"
     ).sum("m")
@@ -307,9 +313,8 @@ def mean_along_m(coeffs):
             longitudinal wavenumber
     """
     if _HARMONIC_DIM in coeffs.dims:
-        raise ValueError(
-            "Please first unpack the coefficients into m-n wavenumber pairs using unpack_mn"
-        )
+        n_trunc = _n_trunc_from_n_harmonics(coeffs.sizes(_HARMONIC_DIM))
+        coeffs = unpack_mn(coeffs, n_trunc)
     return xr.concat(
         [coeffs.sel(m=0), 2 * coeffs.sel(m=slice(1, len(coeffs.m) + 1))], dim="m"
     ).mean("m")
@@ -331,7 +336,6 @@ def get_power(coeffs):
             Array containing the power, S(n)
     """
     if _HARMONIC_DIM in coeffs.dims:
-        raise ValueError(
-            "Please first unpack the coefficients into m-n wavenumber pairs using unpack_mn"
-        )
+        n_trunc = _n_trunc_from_n_harmonics(coeffs.sizes(_HARMONIC_DIM))
+        coeffs = unpack_mn(coeffs, n_trunc)
     return sum_along_m(abs(coeffs) ** 2)

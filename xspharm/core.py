@@ -1,6 +1,5 @@
 """Wrapped pyspharm functions"""
 
-import numpy as np
 import xarray as xr
 import dask.array as dsa
 
@@ -14,6 +13,7 @@ from .utils import (
     _add_attrs,
     _prep_for_spharm,
     _prep_for_inv_spharm,
+    _n_trunc_from_n_harmonics,
     get_spharm_grid,
     repack_mn,
     unpack_mn,
@@ -45,7 +45,7 @@ def grdtospec(
         gridtype : str
             Grid type of da. Options are "gaussian" or "regular"
         n_trunc : int, optional
-            Spectral truncation limit
+            Spectral truncation limit. If None, uses (n_lat/2)-1
         unpack_wavenumber_pairs : boolean
             Set to True to unpack coefficients onto total and \
             longitudinal wavenumbers. Otherwise returns coefficients \
@@ -81,12 +81,12 @@ def grdtospec(
                 da,
                 n_trunc,
                 chunks=chunks,
-                dtype=np.complex,
+                dtype=complex,
                 drop_axis=(0, 1),
                 new_axis=(0,),
             )
         else:
-            return st.grdtospec(da)
+            return st.grdtospec(da, n_trunc)
 
     if not prepped:
         da, flipped = _prep_for_spharm(da, lat_dim=lat_dim, lon_dim=lon_dim)
@@ -189,9 +189,6 @@ def spectogrd(
             of da
     """
 
-    def N_trunc(n_harmonics):
-        return int(np.sqrt(2 * n_harmonics) - 1)
-
     def _spectogrd(st, da):
         """
         Transform a variable from spectral to grid space
@@ -215,7 +212,7 @@ def spectogrd(
         da = _prep_for_inv_spharm(da)
 
     if n_lat is None:
-        n_trunc = N_trunc(da.sizes[_HARMONIC_DIM])
+        n_trunc = _n_trunc_from_n_harmonics(da.sizes[_HARMONIC_DIM])
         n_lat = 2 * (n_trunc + 1)
     n_lon = 2 * n_lat
 
@@ -290,7 +287,7 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim="lat", lon_dim="lon", n_trunc=No
     lon_dim : str, optional
         The name of the longitude dimension
     n_trunc : int, optional
-        Spectral truncation limit
+        Spectral truncation limit.  If None, uses (n_lat/2)-1
 
     Returns
     -------
