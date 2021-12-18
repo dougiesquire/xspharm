@@ -26,6 +26,8 @@ This package is not on PyPI. To install:
     pip install .
 
 ## A quick overview of (complex) spherical harmonics
+**Note, some of the equations below have not rendered correctly**
+
 In two dimensional space, the Fourier series can be arrived at by considering polymonials on a circle that are harmonic (ie the two-dimensional Laplacian of the polynomial equal to zero), homogenous (multiplicative scaling behaviour). The approach leads to trigonometric polynomials as the basis functions (i.e. linear combinations of two elements <img src="https://render.githubusercontent.com/render/math?math=$\left[e^{im\theta}, e^{-im\theta}\right]$">).
 
 In a equivalent manner, Spherical Harmonics can be arrived at by considering homogeneous harmonic polynomials on a sphere. Separating the polynomials to comprise trigonometric polynomials in longitude (lines of fixed latitude are circles), leads to a set of Associated Legendre functions, <img src="https://render.githubusercontent.com/render/math?math=$P_{n}^{m} \left(\cos{\phi}\right)$">, of order <img src="https://render.githubusercontent.com/render/math?math=$m$"> and degree <img src="https://render.githubusercontent.com/render/math?math=$n$">, for each <img src="https://render.githubusercontent.com/render/math?math=$m$">. A disadvantage of this organisation is that it makes the poles into special points, but separating the variables is so useful that there are no competitive options.
