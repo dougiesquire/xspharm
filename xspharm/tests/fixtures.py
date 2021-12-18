@@ -26,7 +26,7 @@ def example_da(gridtype, n_additional_dims, wrap="numpy"):
         The first two dimensions are lat and lon and data are \
         replicated along additional dims
     """
-    n_lat = 90
+    n_lat = 20
     n_additional_dim = 2
 
     if gridtype == "gaussian":

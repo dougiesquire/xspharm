@@ -13,7 +13,7 @@ from .fixtures import example_da
 @pytest.mark.parametrize("gridtype", ["regular", "gaussian"])
 @pytest.mark.parametrize("n_broadcast_dims", [0, 1, 2])
 @pytest.mark.parametrize("wrap", ["numpy", "dask", "dask_nocompute"])
-@pytest.mark.parametrize("n_trunc", [None, 20])
+@pytest.mark.parametrize("n_trunc", [None, 10])
 def test_grdtospec(gridtype, n_broadcast_dims, wrap, n_trunc):
     """Test grdtospec relative to pyspharm"""
     data = example_da(gridtype, n_broadcast_dims, wrap)
@@ -37,7 +37,7 @@ def test_grdtospec(gridtype, n_broadcast_dims, wrap, n_trunc):
 @pytest.mark.parametrize("gridtype", ["regular", "gaussian"])
 @pytest.mark.parametrize("n_broadcast_dims", [0, 1, 2])
 @pytest.mark.parametrize("wrap", ["numpy", "dask", "dask_nocompute"])
-@pytest.mark.parametrize("n_trunc", [None, 20])
+@pytest.mark.parametrize("n_trunc", [None, 10])
 @pytest.mark.parametrize("unpack", [True, False])
 def test_spectogrd(gridtype, n_broadcast_dims, wrap, n_trunc, unpack):
     """Test grdtospec-spectogrd roundtrip"""
