@@ -1,4 +1,5 @@
-# xspharm
+xspharm
+=======
 
 [![tests](https://github.com/dougiesquire/xspharm/actions/workflows/tests.yml/badge.svg)](https://github.com/dougiesquire/xspharm/actions/workflows/tests.yml)
 [![pre-commit](https://github.com/dougiesquire/xspharm/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/dougiesquire/xspharm/actions/workflows/pre-commit.yml)
@@ -15,7 +16,8 @@ Taken, adapted and extended from
 [spencerclark](https://github.com/spencerkclark)’s
 [gist](https://gist.github.com/spencerkclark/6a8e05a492111e52d8d8fb407d332611)
 
-### Installation
+Installation
+------------
 
 This package is not on PyPI. To install:
 
@@ -25,7 +27,8 @@ This package is not on PyPI. To install:
 
     pip install .
 
-## A quick overview of (complex) spherical harmonics
+A quick overview of (complex) spherical harmonics
+-------------------------------------------------
 **Note, some of the equations below have not rendered correctly**
 
 In two dimensional space, the Fourier series can be arrived at by considering polymonials on a circle that are harmonic (ie the two-dimensional Laplacian of the polynomial equal to zero), homogenous (multiplicative scaling behaviour). The approach leads to trigonometric polynomials as the basis functions (i.e. linear combinations of two elements <img src="https://render.githubusercontent.com/render/math?math=$\left[e^{im\theta}, e^{-im\theta}\right]$">).
@@ -50,14 +53,16 @@ In addition, if the function, <img src="https://render.githubusercontent.com/ren
 
 where the use of only subscripts indicates the values from a real spectral harmonic analysis. Thus, it is not entirely necessary to save all coefficients - for example, I think `spharm` provides only coefficients for <img src="https://render.githubusercontent.com/render/math?math=$m>0$">.
 
-### Discretizing the problem: quadrature
+Discretizing the problem: quadrature
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 A quadrature is a rule for converting an integral into a sum:
 
 <img src="https://render.githubusercontent.com/render/math?math=\int_{-a}^{b} f \left(x\right) dx = \sum_{j=1}^{n} w_{j} f \left(x_j\right)">.
 
 For Legendre polynomials, Gaussian quadrature provides an exact quadrature for polynomials of degree less than 2N using only N points. One can also use true equispaced nodes in latitude, and these correspond to Chebychev nodes in <img src="https://render.githubusercontent.com/render/math?math=$x$">. The Chebychev nodes have several nice properties, but require twice as many points as the gaussian nodes. For trigonometric polynomials, the appropriate quadrature weights are all 1 and the quadrature points are an equispaced sampling. Thus, when evaulating Spherical Harmonics it is common to use N points in latitude with Gaussian spacing and weighting, and 2N points in longitude with equal spacing.
 
-### Interpretation of spherical harmonics
+Interpretation of spherical harmonics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Parseval’s theorem in Cartesian geometry relates the integral of a function squared to the sum of the squares of the function’s Fourier coefficients. This relation is easily extended to spherical geometry using the orthogonality properties of the spherical harmonic functions. Defining power to be the integral of the function squared divided by the area it spans, the total power of a function is equal to a sum over its power spectrum,
 
 <img src="https://render.githubusercontent.com/render/math?math=\frac{1}{4\pi}\int_{\Omega} |f|^2 \left(\phi, \theta\right) d\Omega = \sum_{n=0}^{\infty} S_{ff} \left(n\right)">,
@@ -68,7 +73,8 @@ where <img src="https://render.githubusercontent.com/render/math?math=$d\Omega$"
 
 See reference [2] for other types of normalisation. If the function <img src="https://render.githubusercontent.com/render/math?math=$f\left(\phi,\theta\right)$"> has a zero mean, <img src="https://render.githubusercontent.com/render/math?math=$S_{ff}\left(n\right)$"> represents the contribution to the variance as a function of degree <img src="https://render.githubusercontent.com/render/math?math=$n$">. 
 
-### `spharm`
+`spharm`
+^^^^^^^^
 The `spharm` package is a wrapper on UCAR's FORTRAN77 library `SPHEREPACK`. There is documentation on the latter [3] which notes the use of normalized Associated Legendre functions of the form,
 
 <img src="https://render.githubusercontent.com/render/math?math=\hat{P}_{n}^{m} = \sqrt{ \frac{2n + 1}{2} \frac{\left(n-m\right)!}{\left(n+m\right)!} } P_{n}^{m}">,
@@ -87,7 +93,8 @@ where the prime notation on the sum indicates that the fist term corresponding t
 
 <img src="https://render.githubusercontent.com/render/math?math=S_{ff}\left(n\right) = \left|\frac{f_{n}^{0}}{\sqrt{2}}\right|^2 + \sum_{m=1}^{n} 2\left|\frac{f_{n}^{m}}{\sqrt{2}}\right|^2">.
 
-### References
+References
+^^^^^^^^^^
 [1] Nice overview: https://pdfs.semanticscholar.org/fcc6/5f4b2c626fb0b9685999d16a8b42799cd15b.pdf 
 
 [2] `SHTools`: https://shtools.oca.eu/shtools/complex-spherical-harmonics.html and https://agupubs.onlinelibrary.wiley.com/doi/epdf/10.1029/2018GC007529
