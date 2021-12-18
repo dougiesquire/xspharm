@@ -66,7 +66,7 @@ where <img src="https://render.githubusercontent.com/render/math?math=$d\Omega$"
 
 See reference [2] for other types of normalisation. If the function <img src="https://render.githubusercontent.com/render/math?math=$f\left(\phi,\theta\right)$"> has a zero mean, <img src="https://render.githubusercontent.com/render/math?math=$S_{ff}\left(n\right)$"> represents the contribution to the variance as a function of degree <img src="https://render.githubusercontent.com/render/math?math=$n$">. 
 
-### `shparm`
+### `spharm`
 The `spharm` package is a wrapper on UCAR's FORTRAN77 library `SPHEREPACK`. There is documentation on the latter [3] which notes the use of normalized Associated Legendre functions of the form,
 
 <img src="https://render.githubusercontent.com/render/math?math=\hat{P}_{n}^{m} = \sqrt{ \frac{2n + 1}{2} \frac{\left(n-m\right)!}{\left(n+m\right)!} } P_{n}^{m}">,
