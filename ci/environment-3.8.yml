@@ -5,6 +5,7 @@ dependencies:
   - python=3.8
   - xarray
   - numpy
+  - netcdf4
   - dask-core
   - pyspharm
   - pytest
