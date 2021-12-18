@@ -20,6 +20,11 @@ from .utils import (
 )
 
 
+def _default_n_trunc(n_lat):
+    """Default value of n_trunc to use when n_trunc = None"""
+    return int(n_lat / 2) - 1
+
+
 def grdtospec(
     da,
     gridtype,
@@ -92,7 +97,7 @@ def grdtospec(
         da, flipped = _prep_for_spharm(da, lat_dim=lat_dim, lon_dim=lon_dim)
 
     if n_trunc is None:
-        n_trunc = int(da.sizes[lat_dim] / 2) - 1
+        n_trunc = _default_n_trunc(da.sizes[lat_dim])
 
     st = _create_spharmt(da.sizes[lon_dim], da.sizes[lat_dim], gridtype=gridtype)
 
@@ -268,30 +273,36 @@ def spectogrd(da, gridtype, n_lat=None, prepped=False, lat_name="lat", lon_name=
     return real
 
 
-def getpsichi(u_grid, v_grid, gridtype, lat_dim="lat", lon_dim="lon", n_trunc=None):
+def getpsichi(
+    u_grid, v_grid, gridtype, n_trunc=None, prepped=False, lat_dim="lat", lon_dim="lon"
+):
     """
-    Returns streamfunction (psi) and velocity potential (chi) using \
-    spharm package
+        Returns streamfunction (psi) and velocity potential (chi) using \
+        spharm package
 
-    Parameters
-    ----------
-    u_grid : xarray DataArray
-        Array containing grid of zonal winds
-    v_grid : xarray DataArray
-        Array containing grid of meridional winds
-    gridtype : str
-        Grid type of da. Options are "gaussian" or "regular"
-    lat_dim : str, optional
-        The name of the latitude dimension
-    lon_dim : str, optional
-        The name of the longitude dimension
-    n_trunc : int, optional
-        Spectral truncation limit.  If None, uses (n_lat/2)-1
+        Parameters
+        ----------
+        u_grid : xarray DataArray
+            Array containing grid of zonal winds
+        v_grid : xarray DataArray
+            Array containing grid of meridional winds
+        gridtype : str
+            Grid type of da. Options are "gaussian" or "regular"
+        n_trunc : int, optional
+            Spectral truncation limit.  If None, uses (n_lat/2)-1
+        prepped : boolean
+            Set to True if data is formatted (stacked, ordered and \
+            chunked) such that it can be handed directly to spharm. \
+            Default is False
+        lat_dim : str, optional
+            The name of the latitude dimension
+        lon_dim : str, optional
+            The name of the longitude dimension
 
-    Returns
-    -------
-    xarray Dataset
-        Arrays containing the streamfunction and velocity potential
+        Returns
+        -------
+        xarray Dataset
+            Arrays containing the streamfunction and velocity potential
     """
 
     def _getpsichi(st, u, v, n_trunc):
@@ -315,10 +326,11 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim="lat", lon_dim="lon", n_trunc=No
             return psi, chi
 
     if n_trunc is None:
-        n_trunc = int(u_grid.sizes[lat_dim] / 2) - 1
+        n_trunc = _default_n_trunc(u_grid.sizes[lat_dim])
 
-    u_grid, _ = _prep_for_spharm(u_grid, lat_dim=lat_dim, lon_dim=lon_dim)
-    v_grid, flipped = _prep_for_spharm(v_grid, lat_dim=lat_dim, lon_dim=lon_dim)
+    if not prepped:
+        u_grid, _ = _prep_for_spharm(u_grid, lat_dim=lat_dim, lon_dim=lon_dim)
+        v_grid, flipped = _prep_for_spharm(v_grid, lat_dim=lat_dim, lon_dim=lon_dim)
 
     st = _create_spharmt(
         u_grid.sizes[lon_dim], u_grid.sizes[lat_dim], gridtype=gridtype
@@ -335,10 +347,14 @@ def getpsichi(u_grid, v_grid, gridtype, lat_dim="lat", lon_dim="lon", n_trunc=No
         dask="allowed",
     )
 
+    if _NON_HORIZONTAL_DIM in u_grid.dims:
+        psi = psi.unstack(_NON_HORIZONTAL_DIM)
+        chi = chi.unstack(_NON_HORIZONTAL_DIM)
+
     psichi = xr.merge(
         [
-            psi.unstack(_NON_HORIZONTAL_DIM).rename("psi"),
-            chi.unstack(_NON_HORIZONTAL_DIM).rename("chi"),
+            psi.rename("psi"),
+            chi.rename("chi"),
         ]
     )
 
